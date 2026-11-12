@@ -2,6 +2,7 @@ import express from "express";
 import { healthController } from "../controllers/healthController";
 import { authRouter } from "./authRoutes";
 import { userRouter } from "./userRoutes";
+import { xerRouter } from "./xerRoutes";
 
 export const router = express.Router();
 
@@ -20,4 +21,4 @@ export const router = express.Router();
 router.get("/health", healthController.getHealth);
 router.use("/auth", authRouter);
 router.use("/users", userRouter);
-// Mount your feature routers here, e.g. router.use("/projects", projectRouter).
+router.use("/xer", xerRouter);

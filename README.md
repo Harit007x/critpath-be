@@ -8,6 +8,57 @@ Postgres backups (`pg_dump`) to R2.
 **Stack:** Node + Express 5 + TypeScript, Prisma on Postgres, Better Auth, zod validation,
 Swagger docs, Resend.
 
+## Schedule checker
+
+Reads a Primavera P6 export (`.xer`), flags the rows it cannot use, and runs three checks.
+The UI is in [critpath-fe](https://github.com/Harit007x/critpath-fe) (`/check`).
+
+**The two public schedules** are in [`samples/`](samples/), unchanged from their sources (links,
+licences and checksums in [`samples/README.md`](samples/README.md)).
+
+| Sample | Activities | Links | Broken rows | Missing links | Negative float | High float |
+| --- | --- | --- | --- | --- | --- | --- |
+| `events-example.xer` | 83 | 86 | 0 | 4 | 0 | 5 |
+| `groupdocs-sample.xer` | 70 | 0 | 70 (calendar `-1` does not exist) | 70 | 0 | 0 |
+
+**How it works**
+
+- `src/lib/xer/parse.ts` reads the file: `ERMHDR` header, `%T` tables, `%F` fields, `%R` rows.
+  A row with the wrong number of values, or a line outside a table, is a **broken row**, reported
+  with its line number in the file.
+- `src/lib/xer/checks.ts` checks the values: bad numbers or dates, unknown status or link types,
+  duplicate `task_id`s, and links to rows that do not exist (a `TASKPRED` link to a missing
+  activity, a `TASK` with a calendar or WBS not in the file). Broken links are reported and left
+  out of the checks.
+- The checks cover the activities **not yet complete**, leaving out level-of-effort and WBS
+  summary activities (the DCMA 14-point convention):
+
+  | Check | Rule |
+  | --- | --- |
+  | Missing links | No predecessor, no successor, or neither |
+  | Negative float | Total float below 0 working days |
+  | High float | Total float above 44 working days (DCMA check 6) |
+
+- Float is stored in hours. It is turned into days with **each activity's own calendar**
+  (`CALENDAR.day_hr_cnt`), not a fixed 8 hours; a blank calendar means the project's default, as
+  in P6.
+- Every check is a plain function with unit tests on small handmade schedules and on both samples
+  (`src/lib/xer/xer.test.ts`).
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/xer/samples` | The bundled samples |
+| `GET /api/xer/samples/:id/check` | Check a sample |
+| `POST /api/xer/check` | Check an uploaded file (multipart field `file`, 25 MB); nothing is stored |
+
+```sh
+curl -F file=@samples/events-example.xer http://localhost:5000/api/xer/check
+```
+
+**Left out on purpose:** the start and finish milestones are flagged by the missing-links check
+like any other activity (DCMA allows one of each; a reviewer can see them in the list); a file
+with several projects is checked as one set of activities; P6 XML is not read.
+
 ## Run locally
 
 Prerequisites: Node 24, pnpm, and Postgres running locally (`brew install postgresql@18 &&
@@ -32,6 +83,7 @@ server console.
 | `GET/PATCH/DELETE /api/users/me` | The signed-in user                     |
 | `PUT/DELETE /api/users/me/image` | Profile photo                          |
 | `GET /api/users/:id/image`  | Serves an uploaded photo                    |
+| `/api/xer/*`                | Schedule checker (above); public            |
 
 ## Adding a feature
 
