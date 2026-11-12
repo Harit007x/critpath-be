@@ -135,13 +135,13 @@ export async function saveUpload(bytes: Buffer, fileName: string): Promise<XerUp
   }
 }
 
-/** The stored copy of these exact bytes, if there is one. Reads only. */
-export async function findStored(bytes: Buffer): Promise<{ id: string; uploadedAt: Date } | null> {
-  return prisma.xerFile.findUnique({
-    where: { sha256: sha256Of(bytes) },
-    select: { id: true, uploadedAt: true },
-  });
+/** The stored file with this SHA-256 (hex), if there is one. Reads only. */
+export function findStoredBySha256(sha256: string): Promise<{ id: string; uploadedAt: Date } | null> {
+  return prisma.xerFile.findUnique({ where: { sha256 }, select: { id: true, uploadedAt: true } });
 }
+
+/** The stored copy of these exact bytes, if there is one. Reads only. */
+export const findStored = (bytes: Buffer) => findStoredBySha256(sha256Of(bytes));
 
 /** The most recent uploads, newest first. */
 export function listUploads(limit = 50): Promise<StoredXerSummary[]> {

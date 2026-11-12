@@ -45,17 +45,31 @@ xerRouter.get("/samples/:sampleId/check", limiter(1, 60), xerController.checkSam
  * @openapi
  * /xer/check:
  *   post:
- *     summary: Check an uploaded XER file (multipart field `file`, up to 50 MB)
+ *     summary: Check an uploaded XER file (multipart field `file`, up to 50 MB, plain or gzipped)
  *     tags: [XER checker]
  *     responses:
  *       200:
  *         description: Broken rows, the three checks and the float histogram
  *       400:
- *         description: NO_FILE or NOT_AN_XER (wrong extension)
+ *         description: NO_FILE, NOT_AN_XER (wrong extension) or BAD_GZIP
  *       422:
  *         description: NOT_AN_XER (empty, no ERMHDR header or no TASK table)
  */
 xerRouter.post("/check", limiter(1, 20), uploadXer, xerController.checkUpload);
+
+/**
+ * @openapi
+ * /xer/stored/{sha256}:
+ *   get:
+ *     summary: The stored upload with this SHA-256, so a client can skip uploading it again
+ *     tags: [XER checker]
+ *     responses:
+ *       200:
+ *         description: "`{ id, uploadedAt }`, or null when no such file is stored"
+ *       400:
+ *         description: BAD_SHA256
+ */
+xerRouter.get("/stored/:sha256", limiter(1, 60), xerController.findStored);
 
 /**
  * @openapi
