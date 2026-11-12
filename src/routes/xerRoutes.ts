@@ -45,7 +45,7 @@ xerRouter.get("/samples/:sampleId/check", limiter(1, 60), xerController.checkSam
  * @openapi
  * /xer/check:
  *   post:
- *     summary: Check an uploaded XER file (multipart field `file`, up to 25 MB)
+ *     summary: Check an uploaded XER file (multipart field `file`, up to 50 MB)
  *     tags: [XER checker]
  *     responses:
  *       200:

@@ -85,6 +85,9 @@ export const uploadFiles = multer({
   limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES_PER_UPLOAD, fields: 0 },
 }).array("files", MAX_FILES_PER_UPLOAD);
 
+/** A P6 export. Large programmes run to tens of MB; the file is parsed in memory, then stored. */
+export const MAX_XER_BYTES = 50 * 1024 * 1024;
+
 /** An uploaded image (e.g. a profile photo): small, and already shrunk to 256 px by the web app. */
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 

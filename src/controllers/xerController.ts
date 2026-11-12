@@ -1,11 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
 import multer from "multer";
 import { HttpError, paramOf } from "../utils/http";
-import { originalName } from "../lib/uploads";
+import { MAX_XER_BYTES, originalName } from "../lib/uploads";
 import { SAMPLES, checkSample } from "../lib/xer/samples";
 import { getUpload, getUploadContent, listUploads, saveUpload } from "../lib/xer/store";
-
-const MAX_XER_BYTES = 25 * 1024 * 1024;
 
 /** One `.xer` file in field `file`, held in memory until it is parsed and stored (lib/xer/store.ts). */
 export const uploadXer = multer({

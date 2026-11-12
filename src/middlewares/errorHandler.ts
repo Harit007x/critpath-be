@@ -3,6 +3,13 @@ import { ZodError } from "zod";
 import multer from "multer";
 import { HttpError } from "../utils/http";
 import { describeError, notifyOps } from "../lib/discord";
+import { MAX_FILE_BYTES, MAX_IMAGE_BYTES, MAX_XER_BYTES } from "../lib/uploads";
+
+/** The size limit of each upload field, for the "too large" message. */
+const FIELD_LIMITS: Record<string, { what: string; bytes: number }> = {
+  image: { what: "Images", bytes: MAX_IMAGE_BYTES },
+  file: { what: "Schedules", bytes: MAX_XER_BYTES },
+};
 
 export const errorHandler: ErrorRequestHandler = (
   err: any,
@@ -30,11 +37,7 @@ export const errorHandler: ErrorRequestHandler = (
     res.status(err.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
       success: false,
       message:
-        err.code === "LIMIT_FILE_SIZE"
-          ? err.field === "image"
-            ? "Images can be at most 2 MB"
-            : "Files can be at most 25 MB"
-          : err.message,
+        err.code === "LIMIT_FILE_SIZE" ? tooLargeMessage(err.field) : err.message,
       code: err.code,
     });
     return;
@@ -66,3 +69,8 @@ export const errorHandler: ErrorRequestHandler = (
     ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
   });
 };
+
+function tooLargeMessage(field: string | undefined): string {
+  const { what, bytes } = FIELD_LIMITS[field ?? ""] ?? { what: "Files", bytes: MAX_FILE_BYTES };
+  return `${what} can be at most ${bytes / 1024 / 1024} MB`;
+}

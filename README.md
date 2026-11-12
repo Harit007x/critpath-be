@@ -79,7 +79,7 @@ The tables are under "Schedule checker" in `prisma/schema.prisma`.
 | -------------------------------- | ------------------------------------------------------------- |
 | `GET /api/xer/samples`           | The bundled samples                                           |
 | `GET /api/xer/samples/:id/check` | Check a sample (not stored)                                   |
-| `POST /api/xer/check`            | Check and store an upload (multipart field `file`, 25 MB max) |
+| `POST /api/xer/check`            | Check and store an upload (multipart field `file`, 50 MB max) |
 | `GET /api/xer/files`             | The 50 most recent uploads                                    |
 | `GET /api/xer/files/:id`         | A stored upload's report                                      |
 | `GET /api/xer/files/:id/content` | Download the file as uploaded                                 |

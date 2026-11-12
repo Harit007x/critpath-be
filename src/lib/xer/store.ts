@@ -15,8 +15,8 @@ import type { BrokenRow, ParsedXer } from "./parse";
 
 /** Rows per INSERT: well under Postgres's 65,535 bind parameters at 5 columns a row. */
 const ROW_BATCH = 2000;
-/** A 25 MB file can hold a few hundred thousand rows; give the transaction time to write them. */
-const SAVE_TIMEOUT_MS = 120_000;
+/** A 50 MB file can hold several hundred thousand rows; give the transaction time to write them. */
+const SAVE_TIMEOUT_MS = 240_000;
 
 export type StoredXerSummary = {
   id: string;
