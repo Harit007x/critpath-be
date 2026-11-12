@@ -7,9 +7,9 @@
 
 // lib/oauth.ts has the same, but importing it would bring the database into `email:preview`.
 const frontendUrl = () => (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-/** The product's name and public site, as every email names them. */
+/** The product's name and site, as every email names them; the site is the app unless SITE_URL is set. */
 const APP_NAME = process.env.APP_NAME || "CritPath";
-const SITE_URL = (process.env.SITE_URL || "https://www.thecritpath.com").replace(/\/$/, "");
+const siteUrl = () => (process.env.SITE_URL || frontendUrl()).replace(/\/$/, "");
 
 /** What one email says; the layout decides how it looks. */
 export type EmailContent = {
@@ -80,7 +80,7 @@ export const renderEmail = (email: EmailContent): RenderedEmail => {
 <tr><td align="center" style="padding:40px 16px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:480px">
 <tr><td style="padding:0 4px 20px">
-<a href="${e(SITE_URL)}" style="text-decoration:none"><img src="${e(frontendUrl())}/email/critpath-mark.png" width="32" height="32" alt="${e(APP_NAME)}" style="display:inline-block;vertical-align:middle;border:0"><span class="s-heading" style="display:inline-block;vertical-align:middle;margin-left:10px;font-size:18px;font-weight:600;letter-spacing:-0.2px;color:${C.heading}">${e(APP_NAME)}</span></a>
+<a href="${e(siteUrl())}" style="text-decoration:none"><img src="${e(frontendUrl())}/email/critpath-mark.png" width="32" height="32" alt="${e(APP_NAME)}" style="display:inline-block;vertical-align:middle;border:0"><span class="s-heading" style="display:inline-block;vertical-align:middle;margin-left:10px;font-size:18px;font-weight:600;letter-spacing:-0.2px;color:${C.heading}">${e(APP_NAME)}</span></a>
 </td></tr>
 <tr><td class="s-card" bgcolor="${C.card}" style="background:${C.card};border:1px solid ${C.border};border-radius:12px;padding:32px">
 <h1 class="s-heading" style="margin:0 0 16px;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.3px;color:${C.heading}">${e(email.heading)}</h1>
@@ -96,7 +96,7 @@ ${paragraphs}
 </td></tr>
 <tr><td style="padding:20px 4px 0">
 <p class="s-muted" style="margin:0 0 6px;font-size:12px;line-height:18px;color:${C.muted}">${e(email.reason)}</p>
-<p class="s-muted" style="margin:0;font-size:12px;line-height:18px;color:${C.muted}">${e(APP_NAME)} · <a class="s-muted" href="${e(SITE_URL)}" style="color:${C.muted};text-decoration:underline">${e(SITE_URL.replace(/^https?:\/\//, ""))}</a></p>
+<p class="s-muted" style="margin:0;font-size:12px;line-height:18px;color:${C.muted}">${e(APP_NAME)} · <a class="s-muted" href="${e(siteUrl())}" style="color:${C.muted};text-decoration:underline">${e(siteUrl().replace(/^https?:\/\//, ""))}</a></p>
 </td></tr>
 </table>
 </td></tr>
@@ -110,7 +110,7 @@ ${paragraphs}
     ...email.paragraphs,
     `${email.button.label}: ${email.button.url}`,
     email.note,
-    `--\n${email.reason}\n${APP_NAME} · ${SITE_URL}`,
+    `--\n${email.reason}\n${APP_NAME} · ${siteUrl()}`,
   ].join("\n\n");
 
   return { subject: email.subject, html, text };

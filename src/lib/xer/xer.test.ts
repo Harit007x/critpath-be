@@ -30,14 +30,19 @@ const check = (report: ReturnType<typeof run>, id: string) => report.checks.find
 describe("parseXer", () => {
   it("reads tables and ignores P6's trailing tab", () => {
     const parsed = parseXer(xer({ CALENDAR }));
-    expect(parsed.fatal).toEqual(["The file has no TASK table, so there are no activities to check."]);
+    expect(parsed.fatal).toEqual(["This export has no activities (no TASK table) to check."]);
     expect(parsed.tables.get("CALENDAR")!.fields).toEqual(["clndr_id", "day_hr_cnt"]);
     expect(parsed.tables.get("CALENDAR")!.rows[1].values).toEqual({ clndr_id: "2", day_hr_cnt: "10" });
     expect(parsed.brokenRows).toEqual([]);
   });
 
   it("rejects a file without an ERMHDR header", () => {
-    expect(parseXer("hello\tworld").fatal[0]).toMatch(/ERMHDR/);
+    expect(parseXer("hello\tworld").fatal).toEqual(["This isn't a Primavera P6 export (.xer)."]);
+  });
+
+  it("rejects an empty file with one plain reason", () => {
+    expect(parseXer("").fatal).toEqual(["This file is empty."]);
+    expect(parseXer("\uFEFF \r\n").fatal).toEqual(["This file is empty."]);
   });
 
   it("flags rows with too few or too many values, with their line and row number", () => {
@@ -200,6 +205,6 @@ describe("the bundled samples", () => {
   });
 
   it("refuses a file that is not XER", () => {
-    expect(() => checkXer(Buffer.from("name,start\nA,2026-01-01"), "x.xer")).toThrow(/ERMHDR/);
+    expect(() => checkXer(Buffer.from("name,start\nA,2026-01-01"), "x.xer")).toThrow(/isn.t a Primavera P6 export/);
   });
 });

@@ -3,6 +3,7 @@ import { healthController } from "../controllers/healthController";
 import { authRouter } from "./authRoutes";
 import { userRouter } from "./userRoutes";
 import { xerRouter } from "./xerRoutes";
+import { aiRouter } from "./aiRoutes";
 
 export const router = express.Router();
 
@@ -22,3 +23,4 @@ router.get("/health", healthController.getHealth);
 router.use("/auth", authRouter);
 router.use("/users", userRouter);
 router.use("/xer", xerRouter);
+router.use("/ai", aiRouter);

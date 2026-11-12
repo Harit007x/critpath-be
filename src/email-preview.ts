@@ -11,16 +11,16 @@ import {
 
 const dir = path.resolve(process.argv[2] ?? ".email-preview");
 // Links as production has them; the logo from the file the web app serves it from.
-process.env.FRONTEND_URL = "https://app.thecritpath.com";
+process.env.FRONTEND_URL = "https://critpath.example.com";
 const logo = `file://${path.resolve(__dirname, "../../critpath-fe/public/email/critpath-mark.png")}`;
 const link =
-  "https://app.thecritpath.com/api/auth/verify-email?token=eyJhbGciOiJIUzI1NiJ9.example&callbackURL=%2Fverify-email";
+  "https://critpath.example.com/api/auth/verify-email?token=eyJhbGciOiJIUzI1NiJ9.example&callbackURL=%2Fverify-email";
 
 const emails = {
   verify: verifyEmail(link),
   welcome: welcomeEmail("Ada Lovelace"),
   reset: resetPasswordEmail(
-    "https://app.thecritpath.com/api/auth/reset-password/Xk2example?callbackURL=%2Freset-password"
+    "https://critpath.example.com/api/auth/reset-password/Xk2example?callbackURL=%2Freset-password"
   ),
   "existing-account": existingAccountEmail(),
 };
@@ -29,7 +29,7 @@ fs.mkdirSync(dir, { recursive: true });
 for (const [name, email] of Object.entries(emails)) {
   fs.writeFileSync(
     path.join(dir, `${name}.html`),
-    email.html.replace("https://app.thecritpath.com/email/critpath-mark.png", logo)
+    email.html.replace("https://critpath.example.com/email/critpath-mark.png", logo)
   );
   fs.writeFileSync(path.join(dir, `${name}.txt`), `Subject: ${email.subject}\n\n${email.text}\n`);
 }

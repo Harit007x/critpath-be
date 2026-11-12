@@ -68,6 +68,8 @@ export function parseXer(text: string): ParsedXer {
   const broken = (table: string, line: number, rowNumber: number | null, reason: string) =>
     brokenRows.push({ table, line, rowNumber, kind: "structure", field: null, reason });
 
+  if (text.trim() === "") fatal.push("This file is empty.");
+
   lines.forEach((raw, index) => {
     const line = index + 1;
     if (raw.trim() === "") return;
@@ -79,7 +81,7 @@ export function parseXer(text: string): ParsedXer {
         header = { p6Version: cells[1] || null, exportDate: cells[2] || null };
         return;
       }
-      fatal.push("The file does not start with an ERMHDR line, so it is not an XER export.");
+      fatal.push("This isn't a Primavera P6 export (.xer).");
     }
 
     switch (marker) {
@@ -155,7 +157,7 @@ export function parseXer(text: string): ParsedXer {
   });
 
   if (fatal.length === 0 && !tables.has("TASK")) {
-    fatal.push("The file has no TASK table, so there are no activities to check.");
+    fatal.push("This export has no activities (no TASK table) to check.");
   }
 
   return { header, tables, brokenRows, fatal };

@@ -12,7 +12,6 @@ export default defineRailway(() => {
     healthcheckTimeout: 60,
     preDeploy: "pnpm db:deploy",
     replicas: { "ams": 1 },
-    domains: [{ domain: "api.thecritpath.com", port: 5000 }],
   });
 
   return project("CritPath", {

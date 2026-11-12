@@ -45,11 +45,33 @@ licences and checksums in [`samples/README.md`](samples/README.md)).
 - Every check is a plain function with unit tests on small handmade schedules and on both samples
   (`src/lib/xer/xer.test.ts`).
 
+**Uploads are stored in Postgres** (`src/lib/xer/store.ts`, models under "Schedule checker" in
+`prisma/schema.prisma`). The bundled samples are read from disk and not stored.
+
+| Table | Holds |
+| --- | --- |
+| `xer_file` | The file as uploaded (`bytea`), its SHA-256, a summary (project, counts, failing activities per check) and the check report (`jsonb`) |
+| `xer_table` | Each `%T` table in the file, its `%F` field names and row count |
+| `xer_row` | Each readable `%R` row as `{ field: value }` in `jsonb`, with its line number |
+| `xer_broken_row` | Each broken row: table, line, field, kind and reason |
+
+- One upload is written in one transaction, rows in batches of 2,000. A file that is not an XER at
+  all (422) is not stored.
+- The same bytes uploaded again reopen the stored file instead of adding a copy (unique `sha256`).
+- The report is kept as it was at upload, so reopening a file needs no parsing and shows the same
+  result. `xer_row` keeps the parsed data for queries, e.g.
+  `select values->>'task_code' from xer_row where "table" = 'TASK' and "fileId" = '…'`.
+- P6 has dozens of tables whose fields vary by version, so row values are `jsonb` rather than a
+  column per field.
+
 | Route | Purpose |
 | --- | --- |
 | `GET /api/xer/samples` | The bundled samples |
-| `GET /api/xer/samples/:id/check` | Check a sample |
-| `POST /api/xer/check` | Check an uploaded file (multipart field `file`, 25 MB); nothing is stored |
+| `GET /api/xer/samples/:id/check` | Check a sample (not stored) |
+| `POST /api/xer/check` | Check and store an uploaded file (multipart field `file`, 25 MB) |
+| `GET /api/xer/files` | The 50 most recent uploads |
+| `GET /api/xer/files/:id` | A stored upload's report |
+| `GET /api/xer/files/:id/content` | Download a stored upload as it was uploaded |
 
 ```sh
 curl -F file=@samples/events-example.xer http://localhost:5000/api/xer/check
@@ -57,7 +79,26 @@ curl -F file=@samples/events-example.xer http://localhost:5000/api/xer/check
 
 **Left out on purpose:** the start and finish milestones are flagged by the missing-links check
 like any other activity (DCMA allows one of each; a reviewer can see them in the list); a file
-with several projects is checked as one set of activities; P6 XML is not read.
+with several projects is checked as one set of activities; P6 XML is not read. Sign-in is off, so
+every visitor sees every upload and there is no delete; with sign-in on, uploads would belong to a
+user (`userId`, `onDelete: Cascade`) and be listed only to them.
+
+## Schedule assistant
+
+`POST /api/ai/chat` answers questions about a stored upload ("how many rows are broken?"). The answer
+comes from [critpath-ai](https://github.com/Harit007x/critpath-ai), a separate Python service; this API
+validates the request, rate-limits it (6 a minute and 60 a day per address, since every question
+costs model tokens) and passes the service's event stream through. The browser never talks to
+critpath-ai directly.
+
+- `src/lib/ai/schemas.ts` — the request: `{ fileId?, messages }`, starting and ending with the user
+- `src/lib/ai/service.ts` — calls critpath-ai (`AI_SERVICE_URL`, `AI_SERVICE_TOKEN`); unset URL =
+  `503 AI_DISABLED`
+- `src/controllers/aiController.ts` — streams the answer, and stops it if the visitor goes away
+- Migration `ai_views` defines the read-only views critpath-ai reads (`ai_xer_file`, `ai_xer_check`,
+  `ai_xer_broken_row`): its contract with this database
+- `pnpm db:seed` stores the two samples, so the assistant can answer about them; a sample's check then
+  carries its stored copy's id
 
 ## Run locally
 
@@ -84,6 +125,7 @@ server console.
 | `PUT/DELETE /api/users/me/image` | Profile photo                          |
 | `GET /api/users/:id/image`  | Serves an uploaded photo                    |
 | `/api/xer/*`                | Schedule checker (above); public            |
+| `POST /api/ai/chat`         | Schedule assistant (above); public, rate-limited |
 
 ## Adding a feature
 
@@ -111,6 +153,7 @@ server console.
 | `pnpm db:reset`      | Drop the local database and re-apply all migrations  |
 | `pnpm db:push`       | Sync the schema without a migration (prototyping)    |
 | `pnpm db:studio`     | Browse the database in Prisma Studio                 |
+| `pnpm db:seed`       | Store the two sample schedules (safe to re-run)      |
 | `pnpm test`          | Unit tests (vitest)                                  |
 | `pnpm typecheck`     | Type-check                                           |
 | `pnpm smoke`         | End-to-end auth/profile checks against a running API |

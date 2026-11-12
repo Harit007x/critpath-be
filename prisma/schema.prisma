@@ -76,3 +76,83 @@ model Verification {
   @@index([identifier])
   @@map("verification")
 }
+
+// ---------------------------------------------------------------------------
+// Schedule checker (src/lib/xer): uploaded XER files, parsed, with their check report
+// ---------------------------------------------------------------------------
+
+/// One uploaded .xer file. The same bytes uploaded again reopen this row (`sha256`).
+model XerFile {
+  id             String         @id @default(cuid())
+  fileName       String
+  sizeBytes      Int
+  sha256         String         @unique
+  /// The file as uploaded, so it can be downloaded or checked again.
+  content        Bytes
+  p6Version      String?
+  exportDate     String?
+  /// The first project in the file: short name, then name when they differ.
+  projectName    String?
+  activities     Int
+  relationships  Int
+  brokenRowCount Int
+  missingLinks   Int
+  negativeFloat  Int
+  highFloat      Int
+  /// The check report as returned by the API (`CheckReport`), without `brokenRows`,
+  /// which are in `XerBrokenRow`.
+  report         Json
+  uploadedAt     DateTime       @default(now())
+  tables         XerTable[]
+  brokenRows     XerBrokenRow[]
+
+  @@index([uploadedAt])
+  @@map("xer_file")
+}
+
+/// A `%T` table in the file and its `%F` field names.
+model XerTable {
+  fileId   String
+  file     XerFile  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  name     String
+  fields   String[]
+  /// Every `%R` line in the table, read or not.
+  rowCount Int
+  rows     XerRow[]
+
+  @@id([fileId, name])
+  @@map("xer_table")
+}
+
+/// A `%R` row that could be read, as { field: value }. P6 has dozens of tables whose fields
+/// vary by version, so values are jsonb (`values->>'task_code'`) rather than a column each.
+model XerRow {
+  fileId    String
+  table     String
+  /// 1-based position within its table.
+  rowNumber Int
+  /// 1-based line in the file.
+  line      Int
+  values    Json
+  xerTable  XerTable @relation(fields: [fileId, table], references: [fileId, name], onDelete: Cascade)
+
+  @@id([fileId, table, rowNumber])
+  @@map("xer_row")
+}
+
+/// A row the checker could not use, and why (`BrokenRow` in src/lib/xer/parse.ts).
+model XerBrokenRow {
+  id        Int     @id @default(autoincrement())
+  fileId    String
+  file      XerFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  table     String
+  line      Int
+  rowNumber Int?
+  /// structure | value | reference | duplicate
+  kind      String
+  field     String?
+  reason    String
+
+  @@index([fileId, line])
+  @@map("xer_broken_row")
+}

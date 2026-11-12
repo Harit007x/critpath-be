@@ -6,7 +6,7 @@ import {
   welcomeEmail,
 } from "./emails";
 
-const link = "https://app.thecritpath.com/api/auth/verify-email?token=abc&callbackURL=%2Fverify-email";
+const link = "https://critpath.example.com/api/auth/verify-email?token=abc&callbackURL=%2Fverify-email";
 
 describe("emails", () => {
   it("puts the link in the button, the fallback line and the text part", () => {
