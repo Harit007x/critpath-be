@@ -1,0 +1,26 @@
+node_modules
+# Keep environment variables out of version control
+.env
+.env.*
+!.env.example
+
+/generated/prisma
+
+/src/generated/prisma
+
+/src/generated/prisma
+
+dist/
+dist
+
+# Probe output from scripts/shoot-kit.ts — regenerated on demand, never reviewed.
+.kit-shots/
+
+# macOS Finder metadata
+.DS_Store
+
+# Uploaded attachments (local storage)
+/uploads/
+
+# `pnpm email:preview` output — regenerated on demand.
+.email-preview/
