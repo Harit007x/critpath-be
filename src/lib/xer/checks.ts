@@ -13,12 +13,16 @@
  * Invalid dates is the exception: it also looks at complete activities, whose actual dates can be
  * wrong too, and needs the project's data date.
  */
+import { parseCalendar, workingDaysBetween, type WorkCalendar } from "./calendar";
+import { criticalPathTest, projectFinish, type PathActivity } from "./critical-path";
 import type { BrokenRow, ParsedXer, XerRow } from "./parse";
 
 /** DCMA 14-point check 6: more than 44 working days of total float is "high". */
 export const HIGH_FLOAT_DAYS = 44;
 /** DCMA 14-point check 14: the Baseline Execution Index should be at least 0.95. */
 export const MIN_BEI = 0.95;
+/** DCMA 14-point check 13: the Critical Path Length Index should be at least 0.95. */
+export const MIN_CPLI = 0.95;
 /** DCMA 14-point check 8: more than 44 working days of remaining duration is "high". */
 export const HIGH_DURATION_DAYS = 44;
 /** Used only when an activity's calendar is missing or has no hours per day (reported as broken). */
@@ -98,6 +102,8 @@ export type CheckId =
   | "invalid_dates"
   | "resources"
   | "missed_tasks"
+  | "critical_path_test"
+  | "cpli"
   | "bei"
   | "negative_float"
   | "high_float";
@@ -123,6 +129,8 @@ export type CheckResult = {
   skipped?: string;
   /** For a check scored as an index (BEI): its value (null when nothing to divide by) and DCMA's minimum. */
   index?: { value: number | null; min: number };
+  /** For a pass/fail test (the critical path test): whether it passed. */
+  test?: { passed: boolean };
 };
 
 export type FloatBin = { id: string; label: string; count: number };
@@ -213,6 +221,8 @@ export function checkSchedule(parsed: ParsedXer): CheckReport {
   const onlyDataDate = dataDates.size === 1 ? [...dataDates.values()][0] : undefined;
   /** Activities whose project has a data date, with the dates that are wrong against it. */
   const invalidDates = new Map<string, string[]>();
+  /** What the critical path test needs to know about each activity. */
+  const pathActivities = new Map<string, PathActivity>();
   /** Remaining duration in working days (original duration when there is no remaining value). */
   const remainingDays = new Map<string, number>();
   for (const row of rowsOf("TASK")) {
@@ -302,6 +312,17 @@ export function checkSchedule(parsed: ParsedXer): CheckReport {
     } else if (v[durationField]) {
       flag("TASK", row, "value", durationField, `Duration "${v[durationField]}" is not a number`);
     }
+
+    pathActivities.set(v.task_id, {
+      taskId: v.task_id,
+      type: v.task_type ?? "",
+      status: v.status_code ?? "",
+      earlyStart: DATE.test(v.early_start_date ?? "") ? normalizeDate(v.early_start_date) : null,
+      earlyFinish: DATE.test(v.early_end_date ?? "") ? normalizeDate(v.early_end_date) : null,
+      totalFloatHours: isNumber(floatHours) ? Number(floatHours) : null,
+      mandatory: [v.cstr_type, v.cstr_type2].some(c => c === "CS_MANDSTART" || c === "CS_MANDFIN"),
+      line: row.line,
+    });
 
     activities.set(v.task_id, {
       taskId: v.task_id,
@@ -457,6 +478,59 @@ export function checkSchedule(parsed: ParsedXer): CheckReport {
       : dataDates.size === 0
         ? "The file has no data date to compare against."
         : undefined;
+
+  // Critical path test (critical-path.ts).
+  const criticalHours = Number(rowsOf("PROJECT")[0]?.values.critical_drtn_hr_cnt);
+  const pathTest = criticalPathTest(
+    pathActivities,
+    links.map(l => ({ pred: l.pred.taskId, succ: l.succ.taskId, type: l.type })),
+    Number.isFinite(criticalHours) ? criticalHours : 0
+  );
+  const LINK_NAME: Record<string, string> = { PR_FS: "FS", PR_SS: "SS", PR_FF: "FF", PR_SF: "SF" };
+  const ran = "passed" in pathTest ? pathTest : null;
+
+  // CPLI: (critical path length + the finish's total float) ÷ critical path length, in working days
+  // on the finish's calendar, from the data date to its forecast finish.
+  const calendars = new Map<string, WorkCalendar | null>(
+    rowsOf("CALENDAR").map(row => [row.values.clndr_id, parseCalendar(row.values.clndr_data)])
+  );
+  const finish = projectFinish(pathActivities);
+  const finishActivity = finish && activities.get(finish.taskId)!;
+  const finishProject = finish && rowsOf("TASK").find(row => row.line === finish.line)?.values.proj_id;
+  const cplDataDate = (finishProject && dataDates.get(finishProject)) || onlyDataDate;
+  const cpl =
+    finish && cplDataDate
+      ? workingDaysBetween(calendars.get(finishActivity!.calendar ?? "") ?? null, cplDataDate, finish.earlyFinish!)
+      : 0;
+  const finishFloat = finishActivity?.totalFloatDays ?? null;
+  const cpli = cpl > 0 && finishFloat !== null ? round((cpl + finishFloat) / cpl, 2) : null;
+  const cpliSkipped = !finish
+    ? "No unfinished activity has a forecast finish."
+    : !cplDataDate
+      ? "The file has no data date to measure the critical path from."
+      : finishFloat === null
+        ? "The finish activity has no total float."
+        : cpl <= 0
+          ? "The finish is not after the data date."
+          : undefined;
+  const pathRows: CheckResult["activities"] = !ran
+    ? []
+    : ran.passed
+      ? ran.path.map(step => ({
+          ...activities.get(step.taskId)!,
+          detail:
+            step.taskId === ran.start
+              ? "Delay added here (first critical activity)"
+              : `${step.taskId === ran.finish ? "Project finish, pushed" : "Pushed"} by ${LINK_NAME[step.via ?? ""] ?? step.via} from ${activities.get(step.from!)!.code}`,
+        }))
+      : [
+          {
+            ...activities.get(ran.start)!,
+            detail: `Delay added here (first critical activity)${ran.stops.length === 0 ? "; it has no successor to pass it on" : ""}`,
+          },
+          ...ran.stops.map(stop => ({ ...activities.get(stop.taskId)!, detail: stop.reason })),
+          { ...activities.get(ran.finish)!, detail: "Project finish: the delay never reaches it" },
+        ];
 
   const dated = all.filter(a => !EXCLUDED_TYPES.has(a.type) && invalidDates.has(a.taskId));
   const badDates = dated
@@ -626,6 +700,42 @@ export function checkSchedule(parsed: ParsedXer): CheckReport {
           dueByDataDate.length
         ),
         ...(missedSkipped && { skipped: missedSkipped }),
+      },
+      {
+        ...result(
+          "critical_path_test",
+          12,
+          "Critical path test",
+          "A large delay on the first critical activity must move the project finish",
+          pathRows,
+          "activities",
+          1
+        ),
+        count: ran && !ran.passed ? 1 : 0,
+        pct: ran && !ran.passed ? 100 : 0,
+        ...(ran ? { test: { passed: ran.passed } } : { skipped: (pathTest as { skipped: string }).skipped }),
+      },
+      {
+        ...result(
+          "cpli",
+          13,
+          "Critical path length (CPLI)",
+          `(Critical path length + finish float) ÷ critical path length; at least ${MIN_CPLI}`,
+          cpli === null
+            ? []
+            : [
+                {
+                  ...finishActivity!,
+                  detail: `${cpl} working days from the data date ${cplDataDate!.slice(0, 10)} to the finish, with ${formatDays(finishFloat!)} of float: CPLI ${cpli}`,
+                },
+              ],
+          "activities",
+          1
+        ),
+        count: cpli !== null && cpli < MIN_CPLI ? 1 : 0,
+        pct: cpli !== null && cpli < MIN_CPLI ? 100 : 0,
+        index: { value: cpli, min: MIN_CPLI },
+        ...(cpliSkipped && { skipped: cpliSkipped }),
       },
       {
         ...result(

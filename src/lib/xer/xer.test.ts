@@ -355,6 +355,83 @@ describe("missed tasks", () => {
   });
 });
 
+describe("critical path test", () => {
+  const FIELDS = [...TASK_FIELDS, "early_start_date", "early_end_date", "cstr_type"];
+  // A100 → A200 → A400 (finish) is critical; A300 has float and offers a shorter way round.
+  const task = (id: string, code: string, type: string, float: string, start: string, end: string, cstr = "") => [
+    id, "1", code, code, type, "TK_NotStart", float, start, end, cstr,
+  ];
+  const TASK = [
+    FIELDS,
+    task("1", "A100", "TT_Task", "0", "2026-06-01 08:00", "2026-06-05 17:00"),
+    task("2", "A200", "TT_Task", "0", "2026-06-08 08:00", "2026-06-12 17:00"),
+    task("3", "A300", "TT_Task", "40", "2026-06-08 08:00", "2026-06-09 17:00"),
+    task("4", "A400", "TT_FinMile", "0", "2026-06-12 17:00", "2026-06-12 17:00"),
+  ];
+  const test = (links: string[][], tasks = TASK) =>
+    check(run(xer({ CALENDAR, TASK: tasks, TASKPRED: [PRED_FIELDS, ...links] })), "critical_path_test");
+
+  it("passes when the delay reaches the finish, and shows the critical path it took", () => {
+    const result = test([
+      ["1", "2", "1", "PR_FS", "0"],
+      ["2", "4", "2", "PR_FS", "0"],
+      ["3", "3", "1", "PR_FS", "0"],
+      ["4", "4", "3", "PR_FS", "0"],
+    ]);
+    expect(result).toMatchObject({ dcma: 12, test: { passed: true }, count: 0 });
+    expect(result.activities.map(a => [a.code, a.detail])).toEqual([
+      ["A100", "Delay added here (first critical activity)"],
+      ["A200", "Pushed by FS from A100"],
+      ["A400", "Project finish, pushed by FS from A200"],
+    ]);
+  });
+
+  it("fails when a mandatory constraint holds the delay back", () => {
+    const tasks = TASK.map(row => (row[2] === "A200" ? [...row.slice(0, 9), "CS_MANDSTART"] : row));
+    const result = test([["1", "2", "1", "PR_FS", "0"], ["2", "4", "2", "PR_FS", "0"]], tasks);
+    expect(result).toMatchObject({ test: { passed: false }, count: 1 });
+    expect(result.activities.map(a => [a.code, a.detail])).toEqual([
+      ["A100", "Delay added here (first critical activity)"],
+      ["A200", "Mandatory constraint holds it in place"],
+      ["A400", "Project finish: the delay never reaches it"],
+    ]);
+  });
+
+  it("does not carry a longer duration through a start-to-start link", () => {
+    const result = test([["1", "2", "1", "PR_SS", "0"], ["2", "4", "2", "PR_FS", "0"]]);
+    expect(result.test).toEqual({ passed: false });
+    expect(result.activities[0].detail).toBe("Delay added here (first critical activity); it has no successor to pass it on");
+  });
+
+  it("scores CPLI from the data date to the finish, in working days on the finish's calendar", () => {
+    const PROJECT = [["proj_id", "proj_short_name", "last_recalc_date"], ["P1", "P1", "2026-06-01 00:00"]];
+    // A400 (finish) on calendar 1, Monday to Friday by default: 2026-06-01 to 06-12 is 10 working days.
+    const withFloat = (hours: string) =>
+      TASK.map((row, i) => (i === 0 ? [...row, "proj_id"] : [...row.slice(0, 6), row[2] === "A400" ? hours : row[6], ...row.slice(7), "P1"]));
+    const cpli = (hours: string) =>
+      check(run(xer({ CALENDAR, PROJECT, TASK: withFloat(hours), TASKPRED: [PRED_FIELDS] })), "cpli");
+
+    expect(cpli("16")).toMatchObject({ dcma: 13, count: 0, index: { value: 1.2, min: 0.95 } }); // (10 + 2) / 10
+    expect(cpli("16").activities.map(a => [a.code, a.detail])).toEqual([
+      ["A400", "10 working days from the data date 2026-06-01 to the finish, with 2 working days of float: CPLI 1.2"],
+    ]);
+    expect(cpli("-8")).toMatchObject({ count: 1, index: { value: 0.9 } }); // (10 - 1) / 10
+    expect(cpli("0").index).toEqual({ value: 1, min: 0.95 });
+  });
+
+  it("skips CPLI without a data date", () => {
+    const cpli = check(run(xer({ CALENDAR, TASK })), "cpli");
+    expect(cpli).toMatchObject({ index: { value: null }, skipped: "The file has no data date to measure the critical path from." });
+  });
+
+  it("is skipped when nothing unfinished has a forecast finish", () => {
+    const noDates = TASK.map((row, i) => (i === 0 ? row : [...row.slice(0, 7), "", "", ""]));
+    const result = test([], noDates);
+    expect(result.skipped).toBe("No unfinished activity has a forecast finish.");
+    expect(result.test).toBeUndefined();
+  });
+});
+
 describe("relationship checks", () => {
   // A100 (8 h) → A200 (10 h) → A300; A400 is complete; A500 is level of effort.
   const links = (rows: string[][]) =>
@@ -443,6 +520,8 @@ describe("relationship checks", () => {
       [9, "invalid_dates", "activities"],
       [10, "resources", "activities"],
       [11, "missed_tasks", "activities"],
+      [12, "critical_path_test", "activities"],
+      [13, "cpli", "activities"],
       [14, "bei", "activities"],
     ]);
   });
