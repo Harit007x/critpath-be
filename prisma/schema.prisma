@@ -12,19 +12,19 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id             String    @id
-  name           String
-  email          String    @unique
-  emailVerified  Boolean   @default(false)
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
   /// A URL: Google's photo, or `<BETTER_AUTH_URL>/api/users/<id>/image?v=<ms>` for an uploaded one,
   /// which `imageKey`/`imageType` then describe (lib/uploads.ts). Unset = initials.
-  image          String?
-  imageKey       String?
-  imageType      String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  sessions       Session[]
-  accounts       Account[]
+  image         String?
+  imageKey      String?
+  imageType     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
 
   @@map("user")
 }
@@ -107,6 +107,7 @@ model XerFile {
   uploadedAt     DateTime       @default(now())
   tables         XerTable[]
   brokenRows     XerBrokenRow[]
+  chats          Chat[]
 
   @@index([uploadedAt])
   @@map("xer_file")
@@ -157,4 +158,43 @@ model XerBrokenRow {
 
   @@index([fileId, line])
   @@map("xer_broken_row")
+}
+
+// ---------------------------------------------------------------------------
+// Schedule assistant (src/lib/ai): saved conversations with critpath-ai
+// ---------------------------------------------------------------------------
+
+/// One conversation with the assistant. Sign-in is off, so a chat belongs to the browser that
+/// started it: `visitor` is the SHA-256 of the random key that browser sends (X-CritPath-Visitor).
+model Chat {
+  id        String        @id @default(cuid())
+  visitor   String
+  /// The stored upload it is about; null = any stored upload.
+  fileId    String?
+  file      XerFile?      @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  /// The first question, shortened.
+  title     String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+
+  @@index([visitor, fileId, updatedAt])
+  @@map("chat")
+}
+
+/// A question, or the answer to it as it was streamed.
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  /// user | assistant
+  role      String
+  content   String
+  /// Set when the answer stopped early: the message shown for it. Such answers are not sent
+  /// back to the assistant with later questions.
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([chatId, id])
+  @@map("chat_message")
 }

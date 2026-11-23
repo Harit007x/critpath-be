@@ -1,30 +1,35 @@
 import { z } from "zod";
 
-/** Same limits as critpath-ai's ChatRequest, checked here first so bad requests stop at the edge. */
+/** critpath-ai's limits on what one request may send (its ChatRequest). */
 export const MAX_TURNS = 20;
 export const MAX_CHARS = 4000;
 
-const message = z.object({
-  role: z.enum(["user", "assistant"]),
-  content: z.string().trim().min(1).max(MAX_CHARS),
-});
+const fileId = z.string().regex(/^[a-z0-9]{20,40}$/, "Invalid file id");
+const chatId = z.string().regex(/^[a-z0-9]{20,40}$/, "Invalid chat id");
+
+/** A turn as critpath-ai takes it. */
+export type Turn = { role: "user" | "assistant"; content: string };
 
 export const chatSchema = z.object({
   body: z
     .object({
-      /** The stored upload the chat is about (`XerFile.id`); null = any stored upload. */
-      fileId: z
-        .string()
-        .regex(/^[a-z0-9]{20,40}$/, "Invalid file id")
-        .nullish(),
-      messages: z.array(message).min(1).max(MAX_TURNS),
+      /** The stored upload a new chat is about (`XerFile.id`); null = any stored upload. A saved
+       * chat keeps the file it started with, so this is ignored when `chatId` is set. */
+      fileId: fileId.nullish(),
+      /** A saved chat to continue; leave it out to start one. */
+      chatId: chatId.optional(),
+      /** The question. Earlier turns come from the saved chat. */
+      message: z.string().trim().min(1).max(MAX_CHARS),
     })
-    .strict()
-    .refine(
-      // Zod runs this even when `messages` already failed `min(1)`, so it may be empty.
-      ({ messages }) => messages[0]?.role === "user" && messages.at(-1)?.role === "user",
-      { message: "The conversation must start and end with a user message", path: ["messages"] }
-    ),
+    .strict(),
 });
 
 export type ChatBody = z.infer<typeof chatSchema>["body"];
+
+export const listChatsSchema = z.object({
+  query: z.object({ fileId: fileId.optional() }),
+});
+
+export const chatParamsSchema = z.object({
+  params: z.object({ chatId }),
+});

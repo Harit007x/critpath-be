@@ -1,10 +1,11 @@
 /**
- * The client for critpath-ai, the Python service (its own repo) that answers questions about
+ * The client for critpath-ai, the AI service (its own repo; NestJS, or the FastAPI version in
+ * critpath-ai-fastapi, which answers the same way) that answers questions about
  * stored schedules. This API is its only caller: the browser never reaches it directly, so sign-in,
  * rate limits and CORS stay here, and the AI service can stay on a private address.
  */
 import { HttpError } from "../../utils/http";
-import type { ChatBody } from "./schemas";
+import type { Turn } from "./schemas";
 
 /** Read per call: dotenv-flow loads env in index.ts after imports are evaluated. */
 const config = () => ({
@@ -19,7 +20,10 @@ export const aiEnabled = () => config().url !== null;
  * `tool`, then `done` or `error`). Throws an HttpError when the service is off, unreachable or
  * refuses the request; once the stream has started, errors arrive as `error` events instead.
  */
-export async function startChat(body: ChatBody, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+export async function startChat(
+  request: { fileId: string | null; messages: Turn[] },
+  signal: AbortSignal
+): Promise<ReadableStream<Uint8Array>> {
   const { url, token } = config();
   if (!url) throw new HttpError(503, "The assistant is not switched on", "AI_DISABLED");
 
@@ -33,7 +37,7 @@ export async function startChat(body: ChatBody, signal: AbortSignal): Promise<Re
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       // critpath-ai's field names are snake_case.
-      body: JSON.stringify({ file_id: body.fileId ?? null, messages: body.messages }),
+      body: JSON.stringify({ file_id: request.fileId, messages: request.messages }),
       signal,
     });
   } catch (error) {
