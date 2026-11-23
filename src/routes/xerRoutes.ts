@@ -138,3 +138,19 @@ xerRouter.get("/files/:fileId/dataset", limiter(1, 30), xerController.uploadData
  *         description: NOT_FOUND
  */
 xerRouter.get("/samples/:sampleId/dataset", limiter(1, 30), xerController.sampleDataset);
+
+/**
+ * @openapi
+ * /xer/compare/{fromId}/{toId}:
+ *   get:
+ *     summary: What changed between two stored uploads, such as last week's update and this week's
+ *     tags: [XER checker]
+ *     responses:
+ *       200:
+ *         description: Added, deleted and changed activities (matched by activity ID) and relationships, the project finish movement and each check's count in both files
+ *       400:
+ *         description: SAME_FILE
+ *       404:
+ *         description: NOT_FOUND
+ */
+xerRouter.get("/compare/:fromId/:toId", limiter(1, 20), xerController.compareUploads);

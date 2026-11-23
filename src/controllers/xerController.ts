@@ -6,6 +6,7 @@ import { SAMPLES, checkSample } from "../lib/xer/samples";
 import { findStoredBySha256, getUpload, getUploadContent, listUploads, saveUpload } from "../lib/xer/store";
 import { unpackUpload } from "../lib/xer/unpack";
 import { sampleDataset, uploadDataset } from "../lib/xer/datasets";
+import { compareUploads } from "../lib/xer/comparisons";
 
 /** One `.xer` file in field `file`, held in memory until it is parsed and stored (lib/xer/store.ts). */
 export const uploadXer = multer({
@@ -88,6 +89,15 @@ export const xerController = {
   async sampleDataset(req: Request, res: Response, next: NextFunction) {
     try {
       res.json({ success: true, data: await sampleDataset(paramOf(req, "sampleId")) });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** What changed between two stored uploads (lib/xer/compare.ts). */
+  async compareUploads(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ success: true, data: await compareUploads(paramOf(req, "fromId"), paramOf(req, "toId")) });
     } catch (error) {
       next(error);
     }

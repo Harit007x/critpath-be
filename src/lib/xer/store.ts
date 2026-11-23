@@ -23,6 +23,8 @@ export type StoredXerSummary = {
   fileName: string;
   sizeBytes: number;
   projectName: string | null;
+  /** "YYYY-MM-DD", or null when the file has no data date. */
+  dataDate: string | null;
   activities: number;
   relationships: number;
   brokenRowCount: number;
@@ -37,6 +39,7 @@ const summarySelect = {
   fileName: true,
   sizeBytes: true,
   projectName: true,
+  dataDate: true,
   activities: true,
   relationships: true,
   brokenRowCount: true,
@@ -103,6 +106,7 @@ export async function saveUpload(bytes: Buffer, fileName: string): Promise<XerUp
             p6Version: report.p6Version,
             exportDate: report.exportDate,
             projectName: projectNameOf(report.projects),
+            dataDate: report.projects[0]?.dataDate?.slice(0, 10) ?? null,
             activities: report.counts.activities,
             relationships: report.counts.relationships,
             brokenRowCount: brokenRows.length,

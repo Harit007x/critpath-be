@@ -93,6 +93,8 @@ model XerFile {
   exportDate     String?
   /// The first project in the file: short name, then name when they differ.
   projectName    String?
+  /// That project's data date (PROJECT.last_recalc_date) as "YYYY-MM-DD": which update came first.
+  dataDate       String?
   activities     Int
   relationships  Int
   brokenRowCount Int
