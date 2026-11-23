@@ -2,6 +2,7 @@
 import "dotenv-flow/config";
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import swaggerUi from "swagger-ui-express";
@@ -41,6 +42,8 @@ app.use(
   })
 );
 
+// Gzip responses: the dashboard's dataset is a few MB of JSON that compresses about 9 to 1.
+app.use(compression());
 app.use(cookieParser());
 app.use(express.json({ limit: "2mb" }));
 

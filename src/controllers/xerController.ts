@@ -5,6 +5,7 @@ import { MAX_XER_BYTES, originalName } from "../lib/uploads";
 import { SAMPLES, checkSample } from "../lib/xer/samples";
 import { findStoredBySha256, getUpload, getUploadContent, listUploads, saveUpload } from "../lib/xer/store";
 import { unpackUpload } from "../lib/xer/unpack";
+import { sampleDataset, uploadDataset } from "../lib/xer/datasets";
 
 /** One `.xer` file in field `file`, held in memory until it is parsed and stored (lib/xer/store.ts). */
 export const uploadXer = multer({
@@ -70,6 +71,23 @@ export const xerController = {
     try {
       const { fileName, content } = await getUploadContent(paramOf(req, "fileId"));
       res.attachment(fileName).type("application/octet-stream").send(content);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** The whole schedule for the dashboard (lib/xer/dataset.ts). */
+  async uploadDataset(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ success: true, data: await uploadDataset(paramOf(req, "fileId")) });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async sampleDataset(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.json({ success: true, data: await sampleDataset(paramOf(req, "sampleId")) });
     } catch (error) {
       next(error);
     }

@@ -110,3 +110,31 @@ xerRouter.get("/files/:fileId", limiter(1, 60), xerController.getUpload);
  *         description: NOT_FOUND
  */
 xerRouter.get("/files/:fileId/content", limiter(1, 30), xerController.downloadUpload);
+
+/**
+ * @openapi
+ * /xer/files/{fileId}/dataset:
+ *   get:
+ *     summary: The whole schedule of a stored upload, for the dashboard
+ *     tags: [XER checker]
+ *     responses:
+ *       200:
+ *         description: Activities column by column (WBS, activity codes, dates, float, DCMA findings), WBS, code types, resources and assignments
+ *       404:
+ *         description: NOT_FOUND
+ */
+xerRouter.get("/files/:fileId/dataset", limiter(1, 30), xerController.uploadDataset);
+
+/**
+ * @openapi
+ * /xer/samples/{sampleId}/dataset:
+ *   get:
+ *     summary: The whole schedule of a bundled sample, for the dashboard
+ *     tags: [XER checker]
+ *     responses:
+ *       200:
+ *         description: Same shape as GET /xer/files/{fileId}/dataset
+ *       404:
+ *         description: NOT_FOUND
+ */
+xerRouter.get("/samples/:sampleId/dataset", limiter(1, 30), xerController.sampleDataset);
